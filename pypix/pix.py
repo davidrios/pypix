@@ -3,11 +3,15 @@ import os
 import sys
 import base64
 import qrcode
+from pathlib import Path
 from PIL import Image
-from amzqr import amzqr
 from io import BytesIO
 from binascii import crc_hqx
 from unicodedata import normalize
+try:
+    from amzqr import amzqr
+except ImportError:
+    amzqr = None
 
 
 def validate_cpf(numbers):
@@ -60,7 +64,7 @@ def get_qrcode(**kwargs):
     return qr
 
 
-def base64_qrcode(img):
+def dataurl_qrcode(img):
     img_buffer = BytesIO()
     img.save(img_buffer, 'png')
     res = img_buffer.getvalue()
@@ -69,8 +73,7 @@ def base64_qrcode(img):
     return f'data:image/png;base64,{data_string}'
 
 
-def qr_logo(logo, qr_code, out):
-    custom_name = os.path.join(out, 'custom_qr.png')
+def qr_logo(logo, qr_code):
     lg = Image.open(logo)
     width = 100
     wpercent = (width / float(lg.size[0]))
@@ -79,8 +82,6 @@ def qr_logo(logo, qr_code, out):
     pos = ((qr_code.size[0] - logo_qr.size[0]) // 2,
            (qr_code.size[1] - logo_qr.size[1]) // 2)
     qr_code.paste(logo_qr, pos)
-    qr_code.save(custom_name)
-    return Image.open(custom_name)
 
 
 class Pix(object):
@@ -184,14 +185,29 @@ class Pix(object):
             self.qr.add_data(self.get_br_code())
             self.qr.make(fit=True)
             img = self.qr.make_image(fill_color=color, back_color='white').convert("RGB")
-            img.save(output)
             if custom_logo:
-                img = qr_logo(custom_logo, qr_code=img, out='/'.join(output.split('/')[:-1]))
-            return base64_qrcode(img)
+                qr_logo(custom_logo, qr_code=img)
+            img.save(output)
+            return Path(output).absolute()
+        except ValueError:
+            return False
+
+    def get_qrcode_dataurl(self, color='black', custom_logo=None, **kwargs):
+        try:
+            self.qr = get_qrcode(**kwargs)
+            self.qr.add_data(self.get_br_code())
+            self.qr.make(fit=True)
+            img = self.qr.make_image(fill_color=color, back_color='white').convert("RGB")
+            if custom_logo:
+                qr_logo(custom_logo, qr_code=img)
+            return dataurl_qrcode(img)
         except ValueError:
             return False
 
     def get_qrcode_artistic(self, picture, version=None, colorized=True, output=None, fill=None):
+        if not amzqr:
+            raise Exception('amzqr extra dependency is not installed.')
+
         try:
             version, level, qr_name = amzqr.run(
                 self.get_br_code(),
@@ -208,8 +224,6 @@ class Pix(object):
             print(version, level, qr_name)
         except ValueError:
             print('Error saving QR-code.')
-
-        sys.exit()
 
     def qr_ascii(self):
         return self.qr.print_ascii()

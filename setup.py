@@ -18,8 +18,10 @@ setup(
     install_requires=[
         'Pillow',
         'qrcode',
-        'amzqr'
     ],
+    extras_require={
+        'amzqr': ['amzqr'],
+    },
     project_urls={
         "Bug Tracker": "https://github.com/cleitonleonel/pypix/issues",
     },
